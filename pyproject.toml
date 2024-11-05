@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "cpt-to-soiltype"
+version = "0.1.0"
+description = "CPT to soiltype prediction"
+authors = ["tfh <tom.frode.hansen@ngi.no>"]
+license = "MIT"
+readme = "README.md"
+packages = [
+    { include = "cpt_to_soiltype", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pandas = "^2.2.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
