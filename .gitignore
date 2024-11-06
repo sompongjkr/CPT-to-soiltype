@@ -1,2 +1,6 @@
+data
+notebooks/*.html
+
+# tmp files
 *.pyc
-tmp
+__pycache__/

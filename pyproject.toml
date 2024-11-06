@@ -10,8 +10,14 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.11,<3.13"
 pandas = "^2.2.3"
+scikit-learn = "^1.5.2"
+matplotlib = "^3.9.2"
+ipykernel = "^6.29.5"
+ydata-profiling = "^4.12.0"
+rich = "^13.9.4"
+pyod = "^2.0.2"
 
 
 [build-system]
