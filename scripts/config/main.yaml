@@ -1,0 +1,36 @@
+defaults: #points to sub-configs
+  - model: knn.yaml
+  - _self_ # main overrides sub-cfg in case of duplicates
+
+# EXPERIMENT CONFIG
+#####################################################################
+
+# NOTE: hydra configs are not passed on to cfg and don't need schema
+hydra:
+  run:
+    dir: ./experiments/hydra_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ./experiments/hydra_outputs/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+
+experiment:
+  seed: 42
+  train_fraction: 0.75
+  features: ['Depth (m)', 'qc (MPa)', 'fs (kPa)','Rf (%)', 'σ,v (kPa)', 'u0 (kPa)',"σ',v (kPa)", 'Qtn (-)', 'Fr (%)']
+  site_info: ['ID', 'test_type', 'basin_valley']
+  label: 'Oberhollenzer_classes'
+
+preprocess:
+  outlier_feature: 'qc (MPa)'
+  remove_duplicates: True
+  remove_outliers_hard: True
+  remove_outliers_uni: False
+  remove_outliers_multi: False
+  univariate_threshold: 3
+  multivariate_threshold: 0.5
+
+dataset:
+  path_raw: ./data/raw/
+  path_intermediate: ./data/intermediate
+  path_model_ready: ./data/model_ready
+  path_raw_dataset: ${dataset.path_raw}/mmc1.csv

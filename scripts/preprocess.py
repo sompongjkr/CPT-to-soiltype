@@ -53,7 +53,7 @@ if __name__ == '__main__':
     console.print(df.head())
     df.to_csv('data/model_ready/dataset_total.csv', index=False)
 
-    train_df, test_df = split_drillhole_data(df, id_column="ID", train_fraction=0.25)
+    train_df, test_df = split_drillhole_data(df, id_column="ID", train_fraction=0.75)
     train_df.to_csv('data/model_ready/dataset_train.csv', index=False)
     test_df.to_csv('data/model_ready/dataset_test.csv', index=False)
     info_dataset(df, train_df, test_df, label=label)
