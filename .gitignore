@@ -1,5 +1,7 @@
 data
 notebooks/*.html
+experiments
+
 
 # tmp files
 *.pyc
