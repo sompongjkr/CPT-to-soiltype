@@ -2,9 +2,9 @@ import pandas as pd
 from typing import Callable
 from rich.console import Console
 
+
 def track_sample_num(func: Callable) -> Callable:
-    """Tracking number of samples of a dataframe before and after processing.
-    """
+    """Tracking number of samples of a dataframe before and after processing."""
     console = Console()
 
     def df_processing(*args: int, **kwargs: int) -> pd.DataFrame:
@@ -34,6 +34,9 @@ def info_dataset(
 ) -> None:
     """Print info about dataset."""
     console = Console()
+    console.rule()
+    console.print("\nFirst five rows:")
+    console.print(df_main.head())
     console.rule()
     console.print(df_main.info())
     console.rule()
