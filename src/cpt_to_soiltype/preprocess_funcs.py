@@ -136,7 +136,9 @@ def preprocess_data(
         df = remove_outliers_hardcoded(df)
         pprint("Hardcoded outliers removed")
     if remove_outliers_uni:
-        df = remove_outliers_univariate(df, outlier_feature, threshold=univariate_threshold)
+        df = remove_outliers_univariate(
+            df, outlier_feature, threshold=univariate_threshold
+        )
         pprint("Univariate outliers removed")
     if remove_outliers_multi:
         df = remove_outliers_multivariate(

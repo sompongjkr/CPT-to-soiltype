@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 # Model Configurations
@@ -10,6 +11,7 @@ class ModelConfig(BaseModel):
 
 # Experiment Configuration
 class ExperimentConfig(BaseModel):
+    save_model: bool = Field(False, description="Whether to save the model")
     seed: int | None = Field(
         42, description="Random seed for reproducibility, can be None"
     )
@@ -21,6 +23,26 @@ class ExperimentConfig(BaseModel):
     )
     site_info: list[str] = Field(..., description="List of site information fields")
     label: str = Field(..., description="Label for the dataset")
+    undersample_level: int = Field(..., description="Level for undersampling")
+    oversample_level: int = Field(..., description="Level for oversampling")
+    soil_classification: dict[int, str] = Field(
+        ..., description="Soil classification dictionary"
+    )
+
+
+# MLflow Configuration
+class MLflowConfig(BaseModel):
+    path: str = Field(..., description="Path to MLflow experiments directory")
+    experiment_name: str | None = Field(
+        ..., description="Name of the MLflow experiment"
+    )
+
+
+class OptunaConfig(BaseModel):
+    n_trials: int = Field(..., description="Number of trials for Optuna optimization")
+    path_results: str = Field(
+        ..., description="Path to save the results of experiments"
+    )
 
 
 # Preprocessing Configuration
@@ -56,6 +78,12 @@ class DatasetConfig(BaseModel):
     )
     path_model_ready: str = Field(..., description="Path to model-ready data directory")
     path_raw_dataset: str = Field(..., description="Path to the raw dataset CSV file")
+    path_model_ready_train: str = Field(
+        ..., description="Path to the training dataset CSV file"
+    )
+    path_model_ready_test: str = Field(
+        ..., description="Path to the testing dataset CSV file"
+    )
 
 
 # Main Configuration
@@ -68,3 +96,5 @@ class Config(BaseModel):
     )
     dataset: DatasetConfig = Field(..., description="Dataset paths configuration")
     model: ModelConfig = Field(..., description="Model configuration")
+    mlflow: MLflowConfig = Field(..., description="MLflow configuration")
+    optuna: OptunaConfig = Field(..., description="Optuna configuration")

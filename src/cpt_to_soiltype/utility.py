@@ -1,6 +1,46 @@
+from typing import Callable, Optional, Tuple
+
 import pandas as pd
-from typing import Callable
+import xgboost as xgb
 from rich.console import Console
+
+
+def load_data(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame, Optional[pd.Series]]:
+    # Load the dataset from the specified path
+    df = pd.read_csv(file_path)
+
+    # Clean column names to avoid issues with whitespace or special characters
+    df.columns = df.columns.str.strip()
+
+    # Define selected features
+    SELECTED_FEATURES = [
+        "Depth (m)",
+        "qc (MPa)",
+        "fs (kPa)",
+        "Rf (%)",
+        "σ,v (kPa)",
+        "u0 (kPa)",
+        "σ',v (kPa)",
+        "Qtn (-)",
+        "Fr (%)",
+    ]
+
+    # Extract the features
+    features = df[SELECTED_FEATURES].copy()
+
+    # Extract labels if the column exists
+    labels = None
+    if "Oberhollenzer_classes" in df.columns:
+        labels = df["Oberhollenzer_classes"].copy()
+
+    return df, features, labels
+
+
+# Loading the saved model for future use
+def load_xgb_model(model_path: str) -> xgb.Booster:
+    loaded_model = xgb.Booster()
+    loaded_model.load_model(model_path)
+    return loaded_model
 
 
 def track_sample_num(func: Callable) -> Callable:

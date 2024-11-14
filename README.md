@@ -1,6 +1,8 @@
 # CPT to soil type
 
-CPT to SBT is a machine learning tool to predict the soiltype from the cone penetration test (CPT) data.
+CPT to soil type is a machine learning tool to predict the soiltype from the cone penetration test (CPT) data.
+
+The code is developed for use in the applied machine learning course at the Norwegian Geotechnical Institute (NGI): [https://www.ngi.no/](https://www.ngi.no/)
 
 ## Installation
 
@@ -26,13 +28,27 @@ CPT to SBT is a machine learning tool to predict the soiltype from the cone pene
 ### Train and evaluate a model
 
 ```sh
-python train_eval.py
+python train.py
 ```
+
+Use hydra configuration options with train.py to specify the model and training parameters. For example, to train a model with a KNN classifier, run:
+
+```sh
+python train.py model=knn
+```
+
+See options with:
+    
+```sh
+python train.py --help
+```
+
+
 
 ### Start the Streamlit application
 
 ```sh
-streamlit run app.py
+streamlit run Main.py
 ```
 
 ## Contact
