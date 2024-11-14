@@ -10,8 +10,6 @@ from cpt_to_soiltype.preprocess_funcs import (preprocess_data,
 from cpt_to_soiltype.schema_config import Config
 from cpt_to_soiltype.utility import info_dataset
 
-os.environ["HYDRA_FULL_ERROR"] = "1"
-
 
 @hydra.main(config_path="config", config_name="main.yaml", version_base="1.3")
 def main(cfg: DictConfig) -> None:
@@ -42,4 +40,5 @@ def main(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
+    os.environ["HYDRA_FULL_ERROR"] = "1"
     main()

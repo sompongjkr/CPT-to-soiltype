@@ -1,5 +1,5 @@
 defaults: #points to sub-configs
-  - model: knn.yaml
+  - model: xgboost_native.yaml  # knn.yaml, xgboost_native.yaml
   - _self_ # main overrides sub-cfg in case of duplicates
 
 # EXPERIMENT CONFIG
@@ -14,11 +14,22 @@ hydra:
     subdir: ${hydra.job.num}
 
 experiment:
+  save_model: False
   seed: 42
   train_fraction: 0.75
   features: ['Depth (m)', 'qc (MPa)', 'fs (kPa)','Rf (%)', 'σ,v (kPa)', 'u0 (kPa)',"σ',v (kPa)", 'Qtn (-)', 'Fr (%)']
   site_info: ['ID', 'test_type', 'basin_valley']
   label: 'Oberhollenzer_classes'
+  undersample_level: 110000
+  oversample_level: 75000
+  soil_classification:
+    1: gravel
+    4: sand to gravel
+    5: sand
+    3: coarse grained organic soils
+    2: fine grained organic soils
+    6: silt to fine sand
+    7: clay to silt
 
 preprocess:
   outlier_feature: 'qc (MPa)'
@@ -29,8 +40,19 @@ preprocess:
   univariate_threshold: 3
   multivariate_threshold: 0.5
 
+
 dataset:
   path_raw: ./data/raw/
   path_intermediate: ./data/intermediate
   path_model_ready: ./data/model_ready
   path_raw_dataset: ${dataset.path_raw}/mmc1.csv
+  path_model_ready_train: ${dataset.path_model_ready}/dataset_train.csv
+  path_model_ready_test: ${dataset.path_model_ready}/dataset_test.csv
+
+mlflow:
+  path: ./experiments/mlruns
+  experiment_name: null # is set when calling scripts
+
+optuna:
+  n_trials: 5
+  path_results: experiments/hyperparameters

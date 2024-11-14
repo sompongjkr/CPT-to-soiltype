@@ -1,0 +1,5 @@
+name: dummy
+params:
+  strategy: most_frequent
+  random_state: null
+  constant: null
