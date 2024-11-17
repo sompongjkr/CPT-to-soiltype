@@ -1,3 +1,8 @@
+"""
+To run application: streamlit run Main.py --server.port=8502
+
+"""
+
 import streamlit as st
 import xgboost as xgb
 
