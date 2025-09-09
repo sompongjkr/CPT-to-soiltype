@@ -7,3 +7,6 @@ experiments
 *.pyc
 __pycache__/
 tmp
+
+# uv environment
+.venv/
