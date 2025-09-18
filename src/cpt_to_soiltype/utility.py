@@ -1,11 +1,12 @@
-from typing import Callable, Optional, Tuple
+from collections.abc import Callable
 
 import pandas as pd
 import xgboost as xgb
 from rich.console import Console
+from rich.theme import Theme
 
 
-def load_data(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame, Optional[pd.Series]]:
+def load_data(file_path: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series | None]:
     # Load the dataset from the specified path
     df = pd.read_csv(file_path)
 
@@ -68,9 +69,11 @@ def track_sample_num(func: Callable) -> Callable:
 
 def info_dataset(
     df_main: pd.DataFrame,
-    df_train: pd.DataFrame,
-    df_test: pd.DataFrame,
     label: str,
+    *,
+    df_test: pd.DataFrame | None = None,
+    df_train: pd.DataFrame | None = None,
+    only_features: bool = False,
 ) -> None:
     """Print info about dataset."""
     console = Console()
@@ -83,12 +86,33 @@ def info_dataset(
     console.print(
         f"\nA fantastic dataset of {df_main.shape[0]} samples is built :smiley:"
     )
-    console.print(f"Num samples trainset: {df_train.shape[0]}")
-    console.print(f"Num samples testset: {df_test.shape[0]}")
-    console.rule()
-    # value counts train
-    console.print("\nValue counts trainset:")
-    console.print(df_train[label].value_counts())
-    # value counts test
-    console.print("\nValue counts testset:")
-    console.print(df_test[label].value_counts())
+    if not only_features:
+        console.print(f"Num samples trainset: {df_train.shape[0]}")
+        console.print(f"Num samples testset: {df_test.shape[0]}")
+        console.rule()
+        # value counts train
+        console.print("\nValue counts trainset:")
+        console.print(df_train[label].value_counts())
+        # value counts test
+        console.print("\nValue counts testset:")
+        console.print(df_test[label].value_counts())
+
+
+def get_custom_console() -> Console:
+    """
+    Returns a custom console with a custom theme.
+
+    Returns:
+        Console: Rich Console object with custom theme.
+
+    """
+    custom_theme = Theme(
+        {
+            "info": "bold green",
+            "warning": "yellow",
+            "danger": "bold red",
+            "error": "bold magenta",
+            "success": "bold blue",
+        }
+    )
+    return Console(theme=custom_theme)

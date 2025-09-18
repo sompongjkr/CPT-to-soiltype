@@ -18,7 +18,6 @@ def objective(
     oversample_level: int,
     undersample_level: int,
 ) -> float:
-
     console = Console()
 
     # Defining the hyperparameters to be optimised
@@ -55,6 +54,7 @@ def objective(
     balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
 
     console.print(f"Balanced accuracy: {balanced_accuracy}")
+    console.rule()
 
     return balanced_accuracy
 

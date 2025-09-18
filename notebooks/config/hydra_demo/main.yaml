@@ -1,0 +1,12 @@
+defaults:
+  - dataset: synthetic
+  - model: logreg
+
+experiment:
+  name: hydra_demo
+  seed: 42
+
+# Configure Hydra's run directory to live under notebooks/outputs/hydra/
+hydra:
+  run:
+    dir: notebooks/outputs/hydra/${now:%Y-%m-%d}/${now:%H-%M-%S}

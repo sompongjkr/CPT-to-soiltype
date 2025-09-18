@@ -11,8 +11,13 @@ from rich.pretty import pprint
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (accuracy_score, classification_report, f1_score,
-                             precision_score, recall_score)
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
@@ -26,7 +31,6 @@ def load_data(
     target_column: str,
     features_columns: list,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
-
     train_data = pd.read_csv(Path(train_data_path))
     test_data = pd.read_csv(Path(test_data_path))
 
@@ -49,10 +53,9 @@ def xgb_native_pipeline(
     model_save_path: str = "models/xgb_model.json",  # Path to save the model
     save_model: bool = False,
 ) -> pd.Series:
-
-    # Convert labels to integers to ensure consistency
-    y_train = y_train.astype(int)
-    y_test = y_test.astype(int)
+    # Ensure labels are numeric (but keep original values for mapping back)
+    y_train = y_train.astype(float)
+    y_test = y_test.astype(float)
 
     undersample_dict = {
         cls: undersample_level
@@ -78,17 +81,22 @@ def xgb_native_pipeline(
         X_train_resampled, y_train_resampled
     )
 
-    # Adjust labels to start from 0 (required for XGBoost with multiclass)
-    y_train = y_train_final - 1
-    y_test = y_test - 1
+    # Map labels to contiguous range [0, num_class) required by XGBoost
+    unique_labels = sorted(y_train_final.unique())
+    label_to_idx = {label: idx for idx, label in enumerate(unique_labels)}
+    idx_to_label = {idx: label for label, idx in label_to_idx.items()}
+
+    y_train_mapped = y_train_final.map(label_to_idx).astype(int)
+    # Map test labels using same mapping; keep original y_test for output comparison
+    y_test_mapped = y_test.map(label_to_idx).astype(int)
 
     # Convert the balanced training data to DMatrix (with GPU support)
-    dtrain = xgb.DMatrix(X_train_final, label=y_train)
-    dtest = xgb.DMatrix(X_test, label=y_test)
+    dtrain = xgb.DMatrix(X_train_final, label=y_train_mapped)
+    dtest = xgb.DMatrix(X_test, label=y_test_mapped)
 
     # Set default parameters for XGBoost if not provided
     params = {
-        "num_class": len(y_train.unique()),  # Number of classes
+        "num_class": len(unique_labels),  # Number of classes
     }
     model_params.update(params)
 
@@ -100,9 +108,11 @@ def xgb_native_pipeline(
         xgb_model.save_model(model_save_path)
         pprint(f"Model saved at {model_save_path}")
 
-    # Make predictions (output is directly class labels)
-    y_pred = xgb_model.predict(dtest)
-    y_pred = y_pred + 1
+    # Make predictions (output is class indices for multi:softmax); map back to original labels
+    y_pred_indices = xgb_model.predict(dtest)
+    # Ensure integer indices for mapping
+    y_pred_indices = pd.Series(y_pred_indices).astype(int)
+    y_pred = y_pred_indices.map(idx_to_label).to_numpy()
     return y_pred
 
 
@@ -117,7 +127,6 @@ def train_predict(
     oversample_level: int,
     save_model: bool = False,
 ) -> Pipeline:
-
     undersample_dict = {
         cls: undersample_level
         for cls in y_train.value_counts().index
@@ -179,7 +188,6 @@ def evaluate_model(
     y_pred: pd.Series,
     class_mapping: dict,
 ) -> tuple[dict[str, float], dict[str, plt.Figure]]:
-
     # Calculate metrics
     accuracy = accuracy_score(y_test, y_pred)
     macro_recall = recall_score(y_test, y_pred, average="macro")
@@ -251,3 +259,51 @@ def log_mlflow_metrics_and_model(
         # Log paths as MLflow parameters
         hydra_cfg_path_str = ", ".join(hydra_cfg_paths)
         mlflow.log_param("hydra_config_paths", hydra_cfg_path_str)
+
+
+def log_mlflow_optimisation_trial(
+    mlflow_path: Path,
+    experiment_name: str,
+    trial_number: int,
+    metric_name: str,
+    metric_value: float,
+    model_name: str,
+    model_params: dict,
+    undersample_level: int,
+    oversample_level: int,
+) -> None:
+    """Log a single optimisation trial to MLflow without artifacts.
+
+    Parameters
+    ----------
+    mlflow_path : Path
+        Tracking URI path for MLflow.
+    experiment_name : str
+        MLflow experiment name (e.g., "optimisation").
+    trial_number : int
+        The Optuna trial number.
+    metric_name : str
+        Name of the metric being optimized (e.g., "balanced_accuracy").
+    metric_value : float
+        The value of the metric for this trial.
+    model_name : str
+        The model name (e.g., "xgboost_native").
+    model_params : dict
+        The hyperparameters evaluated in this trial.
+    undersample_level : int
+        Undersampling level used in the pipeline.
+    oversample_level : int
+        Oversampling level used in the pipeline.
+    """
+    mlflow.set_tracking_uri(str(mlflow_path))
+    mlflow.set_experiment(experiment_name=experiment_name)
+
+    with mlflow.start_run(run_name=f"trial_{trial_number}"):
+        mlflow.log_metric(metric_name, metric_value)
+        mlflow.log_param("trial_number", trial_number)
+        mlflow.log_param("model_name", model_name)
+        mlflow.log_param("undersample_level", undersample_level)
+        mlflow.log_param("oversample_level", oversample_level)
+        # Log the hyperparameters evaluated in the trial
+        if model_params:
+            mlflow.log_params(model_params)

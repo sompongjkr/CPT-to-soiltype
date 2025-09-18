@@ -8,9 +8,13 @@ from rich.console import Console
 from rich.traceback import install
 
 from cpt_to_soiltype.schema_config import Config
-from cpt_to_soiltype.train_eval_funcs import (evaluate_model, load_data,
-                                              log_mlflow_metrics_and_model,
-                                              train_predict)
+from cpt_to_soiltype.train_eval_funcs import (
+    evaluate_model,
+    load_data,
+    log_mlflow_metrics_and_model,
+    train_predict,
+)
+from cpt_to_soiltype.utility import get_custom_console
 
 
 @hydra.main(config_path="config", config_name="main.yaml", version_base="1.3")
@@ -32,12 +36,12 @@ def main(cfg: DictConfig) -> None:
     +overrides=@overrides.yaml
     """
     pcfg = Config(**OmegaConf.to_object(cfg))
-    console = Console()
+    console = get_custom_console()
     console.print(pcfg)
     pcfg.mlflow.experiment_name = "train_test"
 
     # Load data
-    console.print("[bold green]Loading training and testing data...[/bold green]")
+    console.print("Loading training and testing data...", style="info")
     X_train, X_test, y_train, y_test = load_data(
         pcfg.dataset.path_model_ready_train,
         pcfg.dataset.path_model_ready_test,
@@ -46,7 +50,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     # Train model and predict output
-    console.print("[bold green]Train and predict...[/bold green]")
+    console.print("Train and predict...", style="info")
     y_pred = train_predict(
         pcfg.model.name,
         pcfg.model.params,
@@ -60,13 +64,13 @@ def main(cfg: DictConfig) -> None:
     )
 
     # Evaluate model
-    console.print("[bold green]Evaluating model...[/bold green]")
+    console.print("Evaluating model...", style="info")
     metrics, artifacts = evaluate_model(
         y_test, y_pred, pcfg.experiment.soil_classification
     )
 
     # log results and config to mlflow
-    console.print("[bold green]Logging data to MLflow...[/bold green]")
+    console.print("Logging data to MLflow...", style="info")
     hydra_cfg_dir = Path(HydraConfig.get().run.dir) / ".hydra"
     log_mlflow_metrics_and_model(
         pcfg.mlflow.path,

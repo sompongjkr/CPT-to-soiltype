@@ -4,7 +4,7 @@ import pandas as pd
 from pyod.models.iforest import IForest
 from pyod.models.mad import MAD
 from rich.pretty import pprint
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit, train_test_split
 
 from cpt_to_soiltype.utility import track_sample_num
 
@@ -48,7 +48,7 @@ def remove_outliers_hardcoded(df: pd.DataFrame) -> pd.DataFrame:
     df = df[(df["Fr (%)"] < 10) & (df["Fr (%)"] > 0)]
     # skip samples with label 3.0
     # df = df[df['Oberhollenzer_classes'] != 3.0] # due to low sample size
-    df = df[df["Oberhollenzer_classes"] != 0.0]  # due to low sample size
+    # df = df[df["Oberhollenzer_classes"] != 0.0]  # due to low sample size
     return df
 
 
@@ -112,21 +112,42 @@ def remove_outliers_multivariate(
 
 def preprocess_data(
     path_file: str,
-    features: list,
-    site_features: list,
-    labels: str,
-    outlier_feature: str,
-    remove_duplicates: bool,
-    remove_outliers_hard: bool,
-    remove_outliers_uni: bool,
-    remove_outliers_multi: bool,
+    features: list[str],
+    site_features: list[str] | None = None,
+    labels: str | None = None,
+    *,
+    # Defaults aligned with scripts/config/main.yaml
+    outlier_feature: str = "qc (MPa)",
+    remove_duplicates: bool = True,
+    remove_outliers_hard: bool = True,
+    remove_outliers_uni: bool = False,
+    remove_outliers_multi: bool = False,
     univariate_threshold: int = 3,
-    multivariate_threshold=0.95,
+    multivariate_threshold: float = 0.5,
 ) -> pd.DataFrame:
-    """Preprocess dataset."""
+    """Preprocess dataset.
+
+    Required:
+        path_file: Path to CSV dataset.
+        features: Feature column names to keep for modeling and duplicate checks.
+
+    Optional:
+        site_features: Columns with site/drillhole metadata to retain. If None, none are added.
+        labels: Target column name to include. If None, label is not included in the output DataFrame.
+
+    Other parameters default to values from Hydra config (scripts/config/main.yaml).
+    """
     df = get_dataset(path_file)
     pprint("Dataset loaded")
-    df = choose_features(df, features=site_features + features + [labels])
+    # Build selected columns while allowing None for site_features/labels
+    selected_cols: list[str] = []
+    if site_features:
+        selected_cols.extend(site_features)
+    selected_cols.extend(features)
+    if labels:
+        selected_cols.append(labels)
+
+    df = choose_features(df, features=selected_cols)
     df = drop_na(df)
     pprint("NA values dropped")
     if remove_duplicates:
@@ -136,10 +157,16 @@ def preprocess_data(
         df = remove_outliers_hardcoded(df)
         pprint("Hardcoded outliers removed")
     if remove_outliers_uni:
-        df = remove_outliers_univariate(
-            df, outlier_feature, threshold=univariate_threshold
-        )
-        pprint("Univariate outliers removed")
+        # Only attempt univariate outlier removal if the feature exists
+        if outlier_feature in df.columns:
+            df = remove_outliers_univariate(
+                df, outlier_feature, threshold=univariate_threshold
+            )
+            pprint("Univariate outliers removed")
+        else:
+            pprint(
+                f"Skip univariate outlier removal: '{outlier_feature}' not in columns"
+            )
     if remove_outliers_multi:
         df = remove_outliers_multivariate(
             df, features, confidence_threshold=multivariate_threshold
@@ -151,6 +178,31 @@ def preprocess_data(
 
 
 def split_drillhole_data(
+    df: pd.DataFrame,
+    id_column: str,
+    train_fraction: float = 0.75,
+    random_state: int = 42,
+):
+    """
+    Splits the DataFrame into training and testing sets, keeping drillhole data intact.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing drillhole data.
+        id_column (str): The column name that holds the drillhole ID.
+        train_fraction (float): The fraction of data to use for training. Defaults to 0.75.
+
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame]: Training and testing DataFrames.
+    """
+    gss = GroupShuffleSplit(
+        n_splits=1, train_size=train_fraction, random_state=random_state
+    )
+    groups = df[id_column]
+    train_idx, test_idx = next(gss.split(df, groups=groups))
+    return df.iloc[train_idx].copy(), df.iloc[test_idx].copy()
+
+
+def split_drillhole_data_manual_implementation(
     df: pd.DataFrame, id_column: str, train_fraction: float = 0.75
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """

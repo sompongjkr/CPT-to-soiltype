@@ -16,7 +16,7 @@ hydra:
 experiment:
   save_model: False
   seed: 42
-  train_fraction: 0.75
+  train_fraction: 0.8
   features: ['Depth (m)', 'qc (MPa)', 'fs (kPa)','Rf (%)', 'σ,v (kPa)', 'u0 (kPa)',"σ',v (kPa)", 'Qtn (-)', 'Fr (%)']
   site_info: ['ID', 'test_type', 'basin_valley']
   label: 'Oberhollenzer_classes'
@@ -45,9 +45,11 @@ dataset:
   path_raw: ./data/raw/
   path_intermediate: ./data/intermediate
   path_model_ready: ./data/model_ready
-  path_raw_dataset: ${dataset.path_raw}/mmc1.csv
-  path_model_ready_train: ${dataset.path_model_ready}/dataset_train.csv
-  path_model_ready_test: ${dataset.path_model_ready}/dataset_test.csv
+  path_raw_dataset: ${dataset.path_raw}/CPT_PremstallerGeotechnik_revised.csv
+  path_model_ready_dataset: ${dataset.path_model_ready}/cpt_dataset_total.csv
+  path_model_ready_features: ${dataset.path_model_ready}/cpt_features.csv
+  path_model_ready_train: ${dataset.path_model_ready}/cpt_dataset_train.csv
+  path_model_ready_test: ${dataset.path_model_ready}/cpt_dataset_test.csv
 
 mlflow:
   path: ./experiments/mlruns

@@ -1,0 +1,11 @@
+name: synthetic
+type: synthetic
+size: 800
+test_size: 0.25
+features:
+  - depth
+  - qc
+  - fs
+  - Fr
+  - noise
+target: y

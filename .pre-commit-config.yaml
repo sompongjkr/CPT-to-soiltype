@@ -1,0 +1,72 @@
+# USAGE
+#########################################################
+# update hooks by calling: pre-commit autoupdate
+# run hooks on all files by calling: pre-commit run --all-files
+# install hooks by calling: pre-commit install
+
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:    # list of supported hooks: https://pre-commit.com/hooks.html
+    - id: trailing-whitespace
+    - id: end-of-file-fixer
+    - id: check-yaml
+    - id: check-json
+    - id: check-added-large-files
+      args: ['--maxkb=2000']
+    - id: debug-statements
+    - id: detect-private-key
+    - id: check-toml
+
+-   repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: "v0.13.0"
+    hooks:    # run the linter
+    - id: ruff
+      args:
+        - "--line-length"
+        - "88"
+    - id: ruff-format
+      args:
+        - "--line-length"
+        - "88"
+
+# -   repo: https://github.com/pre-commit/mirrors-mypy
+#     rev: 'v1.18.1'
+#     hooks:
+#     - id: mypy
+#       files: ^src/.*\.py$
+#       args:
+#         - --config-file=pyproject.toml
+
+-   repo: https://github.com/timothycrosley/isort
+    rev: 6.0.1
+    hooks:
+    - id: isort
+      args:
+        - "--profile"
+        - "black"
+
+# -   repo: https://github.com/PyCQA/bandit
+#     rev: 1.8.6
+#     hooks:
+#     - id: bandit
+#       args:
+#         - -c
+#         - .bandit.yaml
+#         - --severity-level
+#         - medium
+#         - --confidence-level
+#         - high
+#       exclude: ^tests/
+#     # Dedicated pass to always flag assert usage (B101), even with medium severity globally
+#     - id: bandit
+#       name: bandit-asserts
+#       args:
+#         - --severity-level
+#         - low
+#         - --confidence-level
+#         - high
+#         - --tests
+#         - B101
+#       files: ^src/.*\.py$
+#       exclude: ^tests/

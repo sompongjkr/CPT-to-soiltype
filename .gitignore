@@ -1,12 +1,23 @@
-data/raw
-notebooks/*.html
-experiments
+# settings
+.vscode
+.github
 
+
+# data
+data/model_ready
+data/raw
+data/intermediate
+experiments
+notebooks/*.html
+
+# plots
+plots
 
 # tmp files
 *.pyc
 __pycache__/
 tmp
+old
 
 # uv environment
 .venv/

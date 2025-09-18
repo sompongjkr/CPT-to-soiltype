@@ -1,0 +1,12 @@
+name: logistic_regression
+type: logreg
+max_iter: 1000
+penalty: l2
+C: 1.0
+solver: lbfgs
+scaler: standard
+
+# Optional grid (used in notebook to emulate sweeps)
+grid:
+  C: [0.1, 1.0, 10.0]
+  penalty: [l2]

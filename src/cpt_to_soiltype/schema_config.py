@@ -84,6 +84,12 @@ class DatasetConfig(BaseModel):
     path_model_ready_test: str = Field(
         ..., description="Path to the testing dataset CSV file"
     )
+    path_model_ready_dataset: str = Field(
+        ..., description="Path to the full processed dataset CSV file"
+    )
+    path_model_ready_features: str = Field(
+        ..., description="Path to the features dataset CSV file"
+    )
 
 
 # Main Configuration
