@@ -65,8 +65,8 @@ def plot_predictions(
 
 
 def plot_confusion_matrix(
-    y_true: list[Any],
-    y_pred: list[Any],
+    y_true: list[Any] | pd.Series,
+    y_pred: list[Any] | pd.Series,
     class_mapping: dict[int, str],
     normalize: str = "true",
     add_black_lines: bool = True,
@@ -94,9 +94,21 @@ def plot_confusion_matrix(
     }
 
     """
-    # Update the labels using the mapping table with map function
-    class_labels = list(class_mapping.values())
-    class_label_numbers = list(class_mapping.keys())
+    # Determine the set of labels present in the data
+    y_true_series = pd.Series(y_true)
+    y_pred_series = pd.Series(y_pred)
+    present_labels = pd.unique(
+        pd.concat([y_true_series, y_pred_series], ignore_index=True)
+    )
+
+    # Filter class mapping to only present labels; if mapping missing new labels, fallback to stringified numeric labels
+    present_labels_numeric = pd.to_numeric(pd.Series(present_labels), errors="coerce")
+    # Build ordered lists for confusion matrix display
+    class_label_numbers: list[int] = []
+    class_labels: list[str] = []
+    for lbl in sorted([int(x) for x in present_labels_numeric.dropna().unique()]):
+        class_label_numbers.append(lbl)
+        class_labels.append(class_mapping.get(lbl, str(lbl)))
 
     # Generate the confusion matrix with labels in the desired order
     conf_matrix = confusion_matrix(

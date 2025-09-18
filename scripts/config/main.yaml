@@ -22,6 +22,14 @@ experiment:
   label: 'Oberhollenzer_classes'
   undersample_level: 110000
   oversample_level: 75000
+  # Optional label operations
+  # Provide integer labels to drop entirely from train and test sets
+  labels_to_exclude: [0]  # e.g., [8, 9]. 0 should be excluded as it is a mix of many classes
+  # Provide groups of labels to merge into new classes
+  # Example: [[0,2],[3,5,6]] merges 0+2 and 3+5+6 into two new classes
+  label_groups: [[1,4,5],[2,3],[6,7]]
+  # Optional names for the new grouped classes, same order as label_groups
+  label_group_names: [sand-gravel, organic-soils, clay-silt]
   soil_classification:
     1: gravel
     4: sand to gravel

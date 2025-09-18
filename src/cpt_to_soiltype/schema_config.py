@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # Model Configurations
@@ -28,6 +28,34 @@ class ExperimentConfig(BaseModel):
     soil_classification: dict[int, str] = Field(
         ..., description="Soil classification dictionary"
     )
+    labels_to_exclude: list[int] | None = Field(
+        None, description="Labels to exclude from train/test before training"
+    )
+    label_groups: list[list[int]] | None = Field(
+        None,
+        description=(
+            "List of label groups to merge into new classes. Each inner list contains"
+            " labels that will be grouped into a new label."
+        ),
+    )
+    label_group_names: list[str] | None = Field(
+        None,
+        description=(
+            "Optional names for each grouped class, matched by order to label_groups."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_group_names(self) -> "ExperimentConfig":
+        # If names are provided, groups must exist and lengths must match
+        if self.label_group_names is not None:
+            if self.label_groups is None:
+                raise ValueError("label_group_names provided but label_groups is None")
+            if len(self.label_group_names) != len(self.label_groups):
+                raise ValueError(
+                    "label_group_names length must match label_groups length"
+                )
+        return self
 
 
 # MLflow Configuration
