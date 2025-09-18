@@ -64,6 +64,24 @@ class MLflowConfig(BaseModel):
     experiment_name: str | None = Field(
         ..., description="Name of the MLflow experiment"
     )
+    save_model_to_models_dir: bool = Field(
+        False,
+        description=(
+            "Whether to save a copy of the trained model to the local models/ directory"
+        ),
+    )
+    model_json_path: str = Field(
+        "./models/xgb_model.json",
+        description="Filesystem path to save the XGBoost model in JSON format",
+    )
+    model_ubj_path: str = Field(
+        "./models/xgb_model.ubj",
+        description="Filesystem path to save the XGBoost model in UBJ (binary JSON) format",
+    )
+    log_model_artifact: bool = Field(
+        False,
+        description="If true, also log the trained model file(s) as MLflow artifacts",
+    )
 
 
 class OptunaConfig(BaseModel):

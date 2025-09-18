@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import mlflow
@@ -23,6 +24,71 @@ from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
 from cpt_to_soiltype.plotting import plot_confusion_matrix
+
+
+def determine_num_classes(y: pd.Series) -> int:
+    """Robustly determine number of unique classes in a label vector."""
+    try:
+        return int(pd.Series(y).nunique())
+    except Exception:
+        # Fallback if pandas isn't imported here; compute via set
+        return len(set(y.tolist() if hasattr(y, "tolist") else y))
+
+
+def _find_project_root() -> Path:
+    """Find repository root by looking for pyproject.toml upwards from CWD."""
+    project_root = Path.cwd()
+    for p in [project_root] + list(project_root.parents):
+        if (p / "pyproject.toml").exists():
+            return p
+    return project_root
+
+
+def _with_cls_suffix(path: Path, num_classes: int) -> Path:
+    stem, suffix = path.stem, path.suffix
+    return path.with_name(f"{stem}_{num_classes}cls{suffix}")
+
+
+def build_model_save_paths(
+    json_path_str: str, ubj_path_str: str, num_classes: int
+) -> list[str]:
+    """Construct fully-qualified model save paths (JSON and UBJ) with class suffix.
+
+    Ensures parent directories exist and paths are anchored to the repo root
+    if provided as relative.
+    """
+    root = _find_project_root()
+
+    def _resolve(path_str: str) -> Path:
+        p = Path(path_str)
+        return p if p.is_absolute() else (root / p)
+
+    json_p = _with_cls_suffix(_resolve(json_path_str), num_classes)
+    ubj_p = _with_cls_suffix(_resolve(ubj_path_str), num_classes)
+
+    for p in (json_p, ubj_p):
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+    return [str(json_p), str(ubj_p)]
+
+
+def print_saved_model_summary(
+    paths: list[str], num_classes: int, *, console: Any | None = None
+) -> None:
+    """Print a concise summary of saved model files."""
+    msg = f"Saved trained model for {num_classes} classes to:\n" + "\n".join(
+        [f"  - {p}" for p in paths]
+    )
+    try:
+        if console is not None:
+            console.print(msg, style="success")
+        else:
+            print(msg)
+    except Exception:
+        print(msg)
 
 
 def load_data(
@@ -177,8 +243,9 @@ def xgb_native_pipeline(
     model_params: dict,
     oversample_level: int,
     undersample_level: int,
-    model_save_path: str = "models/xgb_model.json",  # Path to save the model
+    model_save_path: str = "models/xgb_model.json",  # Backward-compat single path
     save_model: bool = False,
+    model_save_paths: list[str] | None = None,  # New: optionally save to multiple paths
 ) -> pd.Series:
     # Ensure labels are numeric (but keep original values for mapping back)
     y_train = y_train.astype(float)
@@ -232,8 +299,21 @@ def xgb_native_pipeline(
 
     # optionally save the model
     if save_model:
-        xgb_model.save_model(model_save_path)
-        pprint(f"Model saved at {model_save_path}")
+        # Always ensure at least the legacy single path is saved
+        try:
+            xgb_model.save_model(model_save_path)
+            pprint(f"Model saved at {model_save_path}")
+        except Exception as e:
+            pprint(f"Warning: failed saving model to {model_save_path}: {e}")
+
+        # And save to any additional provided paths (e.g., UBJ)
+        if model_save_paths:
+            for p in model_save_paths:
+                try:
+                    xgb_model.save_model(p)
+                    pprint(f"Model saved at {p}")
+                except Exception as e:
+                    pprint(f"Warning: failed saving model to {p}: {e}")
 
     # Make predictions (output is class indices for multi:softmax); map back to original labels
     y_pred_indices = xgb_model.predict(dtest)
@@ -253,6 +333,9 @@ def train_eval(
     undersample_level: int,
     oversample_level: int,
     save_model: bool = False,
+    *,
+    model_save_path: str | None = None,
+    model_save_paths: list[str] | None = None,
 ) -> Pipeline:
     undersample_dict = {
         cls: undersample_level
@@ -294,6 +377,10 @@ def train_eval(
             oversample_level,
             undersample_level,
             save_model=save_model,
+            model_save_path=(
+                model_save_path if model_save_path else "models/xgb_model.json"
+            ),
+            model_save_paths=model_save_paths,
         )
     else:
         pipeline = make_pipeline(
@@ -352,6 +439,7 @@ def log_mlflow_metrics_and_model(
     hydra_cfg_dir: Path,
     num_classes: int,
     class_mapping: dict[int, str] | None = None,
+    model_artifact_paths: list[str] | None = None,
 ) -> None:
     # Setting MLflow experiment and tracking URI
     mlflow.set_tracking_uri(mlflow_path)
@@ -401,6 +489,15 @@ def log_mlflow_metrics_and_model(
         # Log paths as MLflow parameters
         hydra_cfg_path_str = ", ".join(hydra_cfg_paths)
         mlflow.log_param("hydra_config_paths", hydra_cfg_path_str)
+
+        # Optionally log local model files as MLflow artifacts
+        if model_artifact_paths:
+            for p in model_artifact_paths:
+                try:
+                    mlflow.log_artifact(p, artifact_path="model")
+                except Exception:
+                    # Best-effort: skip if cannot log
+                    pass
 
 
 def log_mlflow_optimisation_trial(
