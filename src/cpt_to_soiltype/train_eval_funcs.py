@@ -471,11 +471,11 @@ def log_mlflow_metrics_and_model(
             preview_items = list(class_mapping.items())[:10]
             for k, v in preview_items:
                 mlflow.log_param(f"class_{k}", v)
-                # Log the full mapping directly as an artifact in the run store
-                mlflow.log_dict(
-                    {int(k): v for k, v in class_mapping.items()},
-                    artifact_file="metadata/class_mapping.json",
-                )
+            # Log the full mapping directly as an artifact in the run store
+            mlflow.log_dict(
+                {int(k): v for k, v in class_mapping.items()},
+                artifact_file="metadata/class_mapping.json",
+            )
 
         # Log Hydra config files as artifacts
         hydra_configs = [f for f in hydra_cfg_dir.iterdir() if f.suffix == ".yaml"]
