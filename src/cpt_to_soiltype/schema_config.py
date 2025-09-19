@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # Model Configurations
@@ -28,6 +28,34 @@ class ExperimentConfig(BaseModel):
     soil_classification: dict[int, str] = Field(
         ..., description="Soil classification dictionary"
     )
+    labels_to_exclude: list[int] | None = Field(
+        None, description="Labels to exclude from train/test before training"
+    )
+    label_groups: list[list[int]] | None = Field(
+        None,
+        description=(
+            "List of label groups to merge into new classes. Each inner list contains"
+            " labels that will be grouped into a new label."
+        ),
+    )
+    label_group_names: list[str] | None = Field(
+        None,
+        description=(
+            "Optional names for each grouped class, matched by order to label_groups."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_group_names(self) -> "ExperimentConfig":
+        # If names are provided, groups must exist and lengths must match
+        if self.label_group_names is not None:
+            if self.label_groups is None:
+                raise ValueError("label_group_names provided but label_groups is None")
+            if len(self.label_group_names) != len(self.label_groups):
+                raise ValueError(
+                    "label_group_names length must match label_groups length"
+                )
+        return self
 
 
 # MLflow Configuration
@@ -35,6 +63,24 @@ class MLflowConfig(BaseModel):
     path: str = Field(..., description="Path to MLflow experiments directory")
     experiment_name: str | None = Field(
         ..., description="Name of the MLflow experiment"
+    )
+    save_model_to_models_dir: bool = Field(
+        False,
+        description=(
+            "Whether to save a copy of the trained model to the local models/ directory"
+        ),
+    )
+    model_json_path: str = Field(
+        "./models/xgb_model.json",
+        description="Filesystem path to save the XGBoost model in JSON format",
+    )
+    model_ubj_path: str = Field(
+        "./models/xgb_model.ubj",
+        description="Filesystem path to save the XGBoost model in UBJ (binary JSON) format",
+    )
+    log_model_artifact: bool = Field(
+        False,
+        description="If true, also log the trained model file(s) as MLflow artifacts",
     )
 
 

@@ -21,3 +21,6 @@ old
 
 # uv environment
 .venv/
+
+#notebooks
+notebooks/outputs

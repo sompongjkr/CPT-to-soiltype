@@ -43,7 +43,7 @@ def main(cfg: DictConfig) -> None:
     )
     train_df.to_csv(pcfg.dataset.path_model_ready_train, index=False)
     test_df.to_csv(pcfg.dataset.path_model_ready_test, index=False)
-    info_dataset(df, train_df, test_df, label="Oberhollenzer_classes")
+    info_dataset(df, label="Oberhollenzer_classes", df_train=train_df, df_test=test_df)
 
     # DATASET WITH FEATURES ONLY (NO LABELS) - FOR UNSUPERVISED LEARNING
     ##################################################################
@@ -61,7 +61,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     df_features_only.to_csv(pcfg.dataset.path_model_ready_features, index=False)
-    info_dataset(df_features_only, only_features=True)
+    info_dataset(df_features_only, label=pcfg.experiment.label, only_features=True)
 
 
 if __name__ == "__main__":

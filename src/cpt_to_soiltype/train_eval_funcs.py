@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import mlflow
@@ -25,6 +26,71 @@ from xgboost import XGBClassifier
 from cpt_to_soiltype.plotting import plot_confusion_matrix
 
 
+def determine_num_classes(y: pd.Series) -> int:
+    """Robustly determine number of unique classes in a label vector."""
+    try:
+        return int(pd.Series(y).nunique())
+    except Exception:
+        # Fallback if pandas isn't imported here; compute via set
+        return len(set(y.tolist() if hasattr(y, "tolist") else y))
+
+
+def _find_project_root() -> Path:
+    """Find repository root by looking for pyproject.toml upwards from CWD."""
+    project_root = Path.cwd()
+    for p in [project_root] + list(project_root.parents):
+        if (p / "pyproject.toml").exists():
+            return p
+    return project_root
+
+
+def _with_cls_suffix(path: Path, num_classes: int) -> Path:
+    stem, suffix = path.stem, path.suffix
+    return path.with_name(f"{stem}_{num_classes}cls{suffix}")
+
+
+def build_model_save_paths(
+    json_path_str: str, ubj_path_str: str, num_classes: int
+) -> list[str]:
+    """Construct fully-qualified model save paths (JSON and UBJ) with class suffix.
+
+    Ensures parent directories exist and paths are anchored to the repo root
+    if provided as relative.
+    """
+    root = _find_project_root()
+
+    def _resolve(path_str: str) -> Path:
+        p = Path(path_str)
+        return p if p.is_absolute() else (root / p)
+
+    json_p = _with_cls_suffix(_resolve(json_path_str), num_classes)
+    ubj_p = _with_cls_suffix(_resolve(ubj_path_str), num_classes)
+
+    for p in (json_p, ubj_p):
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+    return [str(json_p), str(ubj_p)]
+
+
+def print_saved_model_summary(
+    paths: list[str], num_classes: int, *, console: Any | None = None
+) -> None:
+    """Print a concise summary of saved model files."""
+    msg = f"Saved trained model for {num_classes} classes to:\n" + "\n".join(
+        [f"  - {p}" for p in paths]
+    )
+    try:
+        if console is not None:
+            console.print(msg, style="success")
+        else:
+            print(msg)
+    except Exception:
+        print(msg)
+
+
 def load_data(
     train_data_path: Path,
     test_data_path: Path,
@@ -42,6 +108,133 @@ def load_data(
     return X_train, X_test, y_train, y_test
 
 
+def transform_labels(
+    X_train: pd.DataFrame,
+    X_test: pd.DataFrame,
+    y_train: pd.Series,
+    y_test: pd.Series,
+    labels_to_exclude: list[int] | None = None,
+    label_groups: list[list[int]] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+    """Exclude specific labels and/or group labels into new classes.
+
+    Parameters
+    ----------
+    X_train, X_test : pd.DataFrame
+        Feature matrices for train and test splits.
+    y_train, y_test : pd.Series
+        Label vectors for train and test splits (numeric labels expected).
+    labels_to_exclude : list | None, default None
+        Labels to drop from both train and test. Rows with these labels will be removed.
+    label_groups : list[tuple] | None, default None
+        A list of tuples, where each tuple contains labels to be merged into a new label.
+        Example: [(0, 2), (3, 5, 6)] will merge 0 and 2 into a new class, and 3, 5, 6 into another new class.
+
+    Returns
+    -------
+    X_train, X_test, y_train, y_test : tuple
+        The transformed datasets with indices reset for consistency.
+    """
+    # Work on copies to avoid side-effects
+    X_train_out = X_train.copy()
+    X_test_out = X_test.copy()
+    y_train_out = y_train.copy()
+    y_test_out = y_test.copy()
+
+    # 1) Exclude selected labels (apply consistently to X and y)
+    if labels_to_exclude:
+        mask_train = ~y_train_out.isin(labels_to_exclude)
+        mask_test = ~y_test_out.isin(labels_to_exclude)
+
+        X_train_out = X_train_out.loc[mask_train].reset_index(drop=True)
+        y_train_out = y_train_out.loc[mask_train].reset_index(drop=True)
+        X_test_out = X_test_out.loc[mask_test].reset_index(drop=True)
+        y_test_out = y_test_out.loc[mask_test].reset_index(drop=True)
+
+    # 2) Group labels into new classes
+    if label_groups:
+        # Determine a starting point for new labels; assume numeric labels
+        combined_labels = pd.concat([y_train_out, y_test_out], ignore_index=True)
+        combined_numeric = pd.to_numeric(combined_labels, errors="coerce")
+        max_label = (
+            int(pd.Series(combined_numeric).max())
+            if not combined_numeric.isna().all()
+            else -1
+        )
+
+        label_mapping: dict = {}
+        for idx, group in enumerate(label_groups, start=1):
+            new_label = max_label + idx
+            for original_label in group:
+                label_mapping[original_label] = new_label
+
+        if label_mapping:
+            y_train_out = y_train_out.replace(label_mapping)
+            y_test_out = y_test_out.replace(label_mapping)
+
+        # Ensure resulting labels are numeric dtype where possible without deprecated behavior
+        def _safe_to_numeric(series: pd.Series) -> pd.Series:
+            try:
+                return pd.to_numeric(series)
+            except Exception:
+                return series
+
+        y_train_out = _safe_to_numeric(y_train_out)
+        y_test_out = _safe_to_numeric(y_test_out)
+
+    return X_train_out, X_test_out, y_train_out, y_test_out
+
+
+def compute_group_id_mapping(
+    y_train: pd.Series, y_test: pd.Series, label_groups: list[list[int]]
+) -> dict[int, int]:
+    """Compute a mapping from original labels (in groups) to new group IDs.
+
+    New IDs are assigned deterministically as max(existing_label)+1, +2, ...
+    in the order of label_groups.
+    """
+    combined_labels = pd.concat([y_train, y_test], ignore_index=True)
+    combined_numeric = pd.to_numeric(combined_labels, errors="coerce")
+    max_label = (
+        int(pd.Series(combined_numeric).max())
+        if not combined_numeric.isna().all()
+        else -1
+    )
+
+    mapping: dict[int, int] = {}
+    for idx, group in enumerate(label_groups, start=1):
+        new_label = max_label + idx
+        for original_label in group:
+            mapping[original_label] = new_label
+    return mapping
+
+
+def augment_class_mapping_with_groups(
+    class_mapping: dict[int, str],
+    group_id_mapping: dict[int, int],
+    label_group_names: list[str] | None,
+) -> dict[int, str]:
+    """Return a new class_mapping including names for the grouped classes.
+
+    If label_group_names is provided, it will be assigned to the new group IDs
+    in the order those IDs were created; otherwise numeric strings are used.
+    """
+    updated = dict(class_mapping) if class_mapping is not None else {}
+
+    # Determine unique new IDs in stable order by sorting by value then key
+    new_ids_ordered = []
+    for _, new_id in sorted(group_id_mapping.items(), key=lambda kv: (kv[1], kv[0])):
+        if new_id not in new_ids_ordered:
+            new_ids_ordered.append(new_id)
+
+    for i, new_id in enumerate(new_ids_ordered):
+        if label_group_names and i < len(label_group_names):
+            updated[new_id] = label_group_names[i]
+        else:
+            updated[new_id] = str(new_id)
+    return updated
+
+
 def xgb_native_pipeline(
     X_train: pd.DataFrame,
     X_test: pd.DataFrame,
@@ -50,8 +243,9 @@ def xgb_native_pipeline(
     model_params: dict,
     oversample_level: int,
     undersample_level: int,
-    model_save_path: str = "models/xgb_model.json",  # Path to save the model
+    model_save_path: str = "models/xgb_model.json",  # Backward-compat single path
     save_model: bool = False,
+    model_save_paths: list[str] | None = None,  # New: optionally save to multiple paths
 ) -> pd.Series:
     # Ensure labels are numeric (but keep original values for mapping back)
     y_train = y_train.astype(float)
@@ -105,8 +299,21 @@ def xgb_native_pipeline(
 
     # optionally save the model
     if save_model:
-        xgb_model.save_model(model_save_path)
-        pprint(f"Model saved at {model_save_path}")
+        # Always ensure at least the legacy single path is saved
+        try:
+            xgb_model.save_model(model_save_path)
+            pprint(f"Model saved at {model_save_path}")
+        except Exception as e:
+            pprint(f"Warning: failed saving model to {model_save_path}: {e}")
+
+        # And save to any additional provided paths (e.g., UBJ)
+        if model_save_paths:
+            for p in model_save_paths:
+                try:
+                    xgb_model.save_model(p)
+                    pprint(f"Model saved at {p}")
+                except Exception as e:
+                    pprint(f"Warning: failed saving model to {p}: {e}")
 
     # Make predictions (output is class indices for multi:softmax); map back to original labels
     y_pred_indices = xgb_model.predict(dtest)
@@ -116,7 +323,7 @@ def xgb_native_pipeline(
     return y_pred
 
 
-def train_predict(
+def train_eval(
     model_name: str,
     model_params: dict,
     X_train: pd.DataFrame,
@@ -126,6 +333,9 @@ def train_predict(
     undersample_level: int,
     oversample_level: int,
     save_model: bool = False,
+    *,
+    model_save_path: str | None = None,
+    model_save_paths: list[str] | None = None,
 ) -> Pipeline:
     undersample_dict = {
         cls: undersample_level
@@ -167,6 +377,10 @@ def train_predict(
             oversample_level,
             undersample_level,
             save_model=save_model,
+            model_save_path=(
+                model_save_path if model_save_path else "models/xgb_model.json"
+            ),
+            model_save_paths=model_save_paths,
         )
     else:
         pipeline = make_pipeline(
@@ -223,6 +437,9 @@ def log_mlflow_metrics_and_model(
     undersample_level: int,
     oversample_level: int,
     hydra_cfg_dir: Path,
+    num_classes: int,
+    class_mapping: dict[int, str] | None = None,
+    model_artifact_paths: list[str] | None = None,
 ) -> None:
     # Setting MLflow experiment and tracking URI
     mlflow.set_tracking_uri(mlflow_path)
@@ -239,6 +456,7 @@ def log_mlflow_metrics_and_model(
             "scaler": "StandardScaler",
             "undersample_level": undersample_level,
             "oversample_level": oversample_level,
+            "num_classes": num_classes,
         }
         mlflow.log_params(model_details)
         mlflow.log_params(model_params)
@@ -246,6 +464,18 @@ def log_mlflow_metrics_and_model(
         # Log confusion matrix, and eventual other figures as artifact
         for name, fig in artifacts.items():
             mlflow.log_figure(fig, f"{name}.png")
+
+        # Optionally log class mapping (IDs to names) for transparency/comparability
+        if class_mapping:
+            # Log a few entries as params (compact), and the full mapping as JSON artifact
+            preview_items = list(class_mapping.items())[:10]
+            for k, v in preview_items:
+                mlflow.log_param(f"class_{k}", v)
+            # Log the full mapping directly as an artifact in the run store
+            mlflow.log_dict(
+                {int(k): v for k, v in class_mapping.items()},
+                artifact_file="metadata/class_mapping.json",
+            )
 
         # Log Hydra config files as artifacts
         hydra_configs = [f for f in hydra_cfg_dir.iterdir() if f.suffix == ".yaml"]
@@ -259,6 +489,15 @@ def log_mlflow_metrics_and_model(
         # Log paths as MLflow parameters
         hydra_cfg_path_str = ", ".join(hydra_cfg_paths)
         mlflow.log_param("hydra_config_paths", hydra_cfg_path_str)
+
+        # Optionally log local model files as MLflow artifacts
+        if model_artifact_paths:
+            for p in model_artifact_paths:
+                try:
+                    mlflow.log_artifact(p, artifact_path="model")
+                except Exception:
+                    # Best-effort: skip if cannot log
+                    pass
 
 
 def log_mlflow_optimisation_trial(

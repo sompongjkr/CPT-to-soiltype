@@ -39,9 +39,25 @@ def load_data(file_path: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series | N
 
 # Loading the saved model for future use
 def load_xgb_model(model_path: str) -> xgb.Booster:
+    """Load an XGBoost Booster from json or ubj.
+
+    Tries the provided path first; if it fails and the extension is .json or .ubj,
+    tries the alternate extension in the same folder.
+    """
     loaded_model = xgb.Booster()
-    loaded_model.load_model(model_path)
-    return loaded_model
+    try:
+        loaded_model.load_model(model_path)
+        return loaded_model
+    except Exception:
+        # Attempt fallback between .json and .ubj
+        if model_path.endswith(".json"):
+            alt = model_path[:-5] + ".ubj"
+        elif model_path.endswith(".ubj"):
+            alt = model_path[:-4] + ".json"
+        else:
+            raise
+        loaded_model.load_model(alt)
+        return loaded_model
 
 
 def track_sample_num(func: Callable) -> Callable:

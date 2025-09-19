@@ -1,6 +1,7 @@
 defaults:
   - dataset: synthetic
   - model: logreg
+  - _self_
 
 experiment:
   name: hydra_demo
