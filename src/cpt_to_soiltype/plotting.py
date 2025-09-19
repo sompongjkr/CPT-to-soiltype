@@ -102,14 +102,19 @@ def plot_confusion_matrix(
     )
 
     # Filter class mapping to only present labels; if mapping missing new labels, fallback to stringified numeric labels
-    present_labels_numeric = pd.to_numeric(pd.Series(present_labels), errors="coerce")
-    # Build ordered lists for confusion matrix display
-    class_label_numbers: list[int] = []
+    present_labels_series = pd.Series(present_labels)
+    present_labels_numeric = pd.to_numeric(present_labels_series, errors="coerce")
+    # Build ordered lists for confusion matrix display, handling both numeric and non-numeric labels
+    class_label_numbers: list[Any] = []
     class_labels: list[str] = []
-    for lbl in sorted([int(x) for x in present_labels_numeric.dropna().unique()]):
-        class_label_numbers.append(lbl)
-        class_labels.append(class_mapping.get(lbl, str(lbl)))
-
+    for orig_lbl, num_lbl in zip(present_labels_series, present_labels_numeric):
+        if pd.notna(num_lbl):
+            lbl = int(num_lbl)
+            class_label_numbers.append(lbl)
+            class_labels.append(class_mapping.get(lbl, str(lbl)))
+        else:
+            class_label_numbers.append(orig_lbl)
+            class_labels.append(str(orig_lbl))
     # Generate the confusion matrix with labels in the desired order
     conf_matrix = confusion_matrix(
         y_true, y_pred, labels=class_label_numbers, normalize=normalize
